@@ -28,23 +28,41 @@ def main():
     parser.add_argument('--plots', help='Flag: if selected, will show the plots instead of only saving them', required=False, action='store_true')
     parser.add_argument('-n', '--nepochs', help='Number of epochs you want to run on', required=False, default=100, type=int)
     parser.add_argument('--easy', help='Run a simplified version of the network for testing', action='store_true')
+    parser.add_argument('-l', '--layers', nargs='+', type=int, default=(8,8), required=False)
+    parser.add_argument('-e-','--eta', help='Learning rate', type=float, default=2e-4, required=False)
+    parser.add_argument('-b', '--beta', help='Noise schedule beta', type=float, nargs='+', default=(1e-4, 0.02), required=False)
+    parser.add_argument('--nT', help='Number of diffusion steps', type=int, default=1000, required=False)
     args = parser.parse_args()
     
     torch.manual_seed(4999) # set a random seed as my birthday to have reproducible code 
     torch.device('cpu') # set by default the CPU, as I'm running on CPU on my laptop   
     
+    if not os.path.exists('Plots'):
+        os.makedirs('Plots')
+    
     tf = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0))])
     dataset = MNIST("./data", train=True, download=True, transform=tf)
     dataloader = DataLoader(dataset, batch_size=128, shuffle=True, num_workers=4, drop_last=True)
     
-    if args.easy:
-        gt = CNN(in_channels=1, expected_shape=(28, 28), n_hidden=(8,8), act=nn.GELU)
+    # Setting of hyperparameters, passed by command line
+    
+    layers = list(args.layers)        
+    LR = args.eta
+    beta = args.beta
+    nT = args.nT
+    
+    if not args.layers:
+        if args.easy:
+            gt = CNN(in_channels=1, expected_shape=(28, 28), n_hidden=(8,8), act=nn.GELU)
+        else:
+            gt = CNN(in_channels=1, expected_shape=(28, 28), n_hidden=(32,64,64,32), act=nn.GELU)
+    
     else:
-        gt = CNN(in_channels=1, expected_shape=(28, 28), n_hidden=(32,64,64,32), act=nn.GELU)
+        gt = CNN(in_channels=1, expected_shape=(28, 28), n_hidden=layers, act=nn.GELU)
     # For testing: (16, 32, 32, 16)
     # For more capacity (for example): (64, 128, 256, 128, 64)
-    ddpm = DDPM(gt=gt, betas=(1e-4, 0.02), n_T=1000)
-    optim = torch.optim.Adam(ddpm.parameters(), lr=2e-4)
+    ddpm = DDPM(gt=gt, betas=beta, n_T=nT)
+    optim = torch.optim.Adam(ddpm.parameters(), lr=LR)
     
     accelerator = Accelerator()
 
@@ -55,7 +73,7 @@ def main():
     n_epoch = args.nepochs
     losses = []
     best_loss = float('inf') # start with -infinity so that the first step represents always an improvement in the loss
-    delta_ES = 0.01 # delta for early stopping
+    delta_ES = 0.005 # delta for early stopping
     patience = 5 # number of epochs to use to evaluate the early stopping
     epochs_run_on = []
     best_losses = []
