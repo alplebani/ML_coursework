@@ -6,7 +6,7 @@ import argparse
 import time
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Helpers.HelperFunctions import ddpm_schedules, CNNBlock, CNN, DDPM
+from Helpers.HelperFunctions import ddpm_schedules, CNNBlock, CNN, DDPM,PersonalDegradation
 
 
 import torch
@@ -32,13 +32,23 @@ def main():
     parser.add_argument('-e-','--eta', help='Learning rate', type=float, default=2e-4, required=False)
     parser.add_argument('-b', '--beta', help='Noise schedule beta', type=float, nargs='+', default=(1e-4, 0.02), required=False)
     parser.add_argument('--nT', help='Number of diffusion steps', type=int, default=1000, required=False)
+    parser.add_argument('--name', help='Name of the model', type=str, required=True)
+    parser.add_argument('-t', '--type', help='Type of model you want to use for degradation', choices=['DDPM', 'Personal'], required=False, default='DDPM', type=str)
+    parser.add_argument('-d', '--drop', help='Dropout rate for pixels in the image, to be used only with the Personal model', required=False, type=float)
+    parser.add_argument('-r', '--range', help='Range in which  the pixel brightness is adjusted', required=False, type=float, nargs='+')
     args = parser.parse_args()
     
     torch.manual_seed(4999) # set a random seed as my birthday to have reproducible code 
     torch.device('cpu') # set by default the CPU, as I'm running on CPU on my laptop   
     
+    # creating the folders where to store plots and models if they don't exist
+    
     if not os.path.exists('Plots'):
         os.makedirs('Plots')
+    if not os.path.exists('contents'):
+        os.makedirs('contents')
+    if not os.path.exists('model'):
+        os.makedirs('model')   
     
     tf = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0))])
     dataset = MNIST("./data", train=True, download=True, transform=tf)
@@ -46,10 +56,36 @@ def main():
     
     # Setting of hyperparameters, passed by command line
     
-    layers = list(args.layers)        
+    
+    layers = args.layers        
     LR = args.eta
     beta = args.beta
     nT = args.nT
+    name = args.name
+    my_type = args.type
+    
+    if my_type == 'Personal' and not (args.drop and args.range):
+        print('Error! If running with the personal model you need to provide a dropout and a range')
+        print('Exiting code')
+        print('==================================')
+        exit(0)
+    
+    if my_type == 'Personal':
+        dropout = args.drop
+        my_range = args.range
+    
+    print('==================================')
+    print('Summary of hyperparameters:')
+    print('----------------------------------')
+    
+    print(f'Layers = {layers}')
+    print(f'Learning Rate = {LR}')
+    print(f'Beta ={beta}')
+    print(f'nT = {nT}')
+    print(f'Name of the model = {name}')
+    print(f'Type = {my_type}')
+    
+    print('==================================')
     
     if not args.layers:
         if args.easy:
@@ -88,6 +124,10 @@ def main():
         pbar = tqdm(dataloader)  # Wrap our loop with a visual progress bar
         for x, _ in pbar:
             optim.zero_grad()
+            
+            if my_type == 'Personal':
+                degradation = PersonalDegradation(dropout=dropout, my_range=my_range)
+                x = degradation(x)
 
             loss = ddpm(x)
 
@@ -109,19 +149,21 @@ def main():
         if early_stop:
             print(f"Early stopping at epoch {i} due to minimal loss improvement")
             best_losses.append(best_loss)
-            breakpoint()
+            # breakpoint()
             break
         else:
             best_loss = min(best_loss, avg_loss) 
             best_losses.append(best_loss)
         
         ddpm.eval()
+        
+        
         with torch.no_grad():
             xh = ddpm.sample(16, (1, 28, 28), accelerator.device) 
             grid = make_grid(xh, nrow=4)
-            save_image(grid, f"contents/ddpm_sample_{i:04d}.png")
+            save_image(grid, f"contents/{name}_{my_type}_sample_{i:04d}.png")
 
-            torch.save(ddpm.state_dict(), f"model/ddpm_mnist.pth")
+            torch.save(ddpm.state_dict(), f"model/{name}_{my_type}_mnist.pth")
 
     image, _ = next(iter(dataloader)) 
 
@@ -132,17 +174,17 @@ def main():
     
     
     plt.savefig('Plots/example_MNIST.pdf')
-    print('Example MNIST picture saved at Plots/loss_function.pdf')
+    print('Example MNIST picture saved at Plots/example_MNIST.pdf')
     print('===================================')
     # Plotting loss function
     plt.figure()
     plt.plot(epochs_run_on, best_losses)
-    plt.title('Loss function')
+    plt.title(f'Loss function for model {my_type}')
     plt.xlabel('Number of epochs')
     plt.ylabel('Loss')
-    plt.savefig('Plots/loss_function.pdf')
+    plt.savefig(f'Plots/{name}_{my_type}_loss_function.pdf')
     print('===================================')
-    print('Plot saved at Plots/loss_function.pdf')
+    print(f'Plot saved at Plots/{name}_{my_type}_loss_function.pdf')
     print('===================================')
        
     if args.plots: # display plots only if the --plots is used

@@ -179,3 +179,30 @@ class DDPM(nn.Module):
 
         return z_t
 
+class PersonalDegradation(torch.nn.Module):
+    def __init__(self, dropout=0.2, my_range=(-0.2, 0.2)):
+        super().__init__()
+        self.dropout = dropout
+        self.my_range = my_range 
+
+    def forward(self, x):
+  
+        B, C, H, W = x.shape
+        
+        if C == 3:
+            x = x.mean(dim=1, keepdim=True)  
+        elif C != 1:
+            raise ValueError("Input image should be grayscale (C=1) or RGB (C=3).")
+
+        noise = torch.rand_like(x)
+        mask = torch.bernoulli(self.dropout * noise)
+
+       
+        adjust_factor = torch.rand(B, 1, 1, 1) * (self.my_range[1] - self.my_range[0]) + self.my_range[0]
+
+        out = x + adjust_factor * mask * (x - x.mean())
+
+        return out
+    
+    
+    
