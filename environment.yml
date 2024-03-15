@@ -12,5 +12,6 @@ dependencies:
   - accelerate
   - torchvision
   - ignite
+  - scikit-image
 
 

@@ -6,7 +6,7 @@ import argparse
 import time
 import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Helpers.HelperFunctions import ddpm_schedules, CNNBlock, CNN, DDPM,PersonalDegradation
+from Helpers.HelperFunctions import  CNN, DDPM,PersonalDegradation, calculate_inception_score, convert_to_tensor
 
 
 import torch
@@ -14,9 +14,10 @@ import torch.nn as nn
 from accelerate import Accelerator
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-from torchvision import transforms
+from torchvision import transforms, models
 from torchvision.datasets import MNIST
 from torchvision.utils import save_image, make_grid
+from skimage.metrics import structural_similarity as ss
 
 
 plt.style.use('mphil.mplstyle')
@@ -36,6 +37,7 @@ def main():
     parser.add_argument('-t', '--type', help='Type of model you want to use for degradation', choices=['DDPM', 'Personal'], required=False, default='DDPM', type=str)
     parser.add_argument('-d', '--drop', help='Dropout rate for pixels in the image, to be used only with the Personal model', required=False, type=float)
     parser.add_argument('-r', '--range', help='Range in which  the pixel brightness is adjusted', required=False, type=float, nargs='+')
+
     args = parser.parse_args()
     
     torch.manual_seed(4999) # set a random seed as my birthday to have reproducible code 
@@ -53,9 +55,8 @@ def main():
     tf = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0))])
     dataset = MNIST("./data", train=True, download=True, transform=tf)
     dataloader = DataLoader(dataset, batch_size=128, shuffle=True, num_workers=4, drop_last=True)
-    
+
     # Setting of hyperparameters, passed by command line
-    
     
     layers = args.layers        
     LR = args.eta
@@ -167,11 +168,21 @@ def main():
 
     image, _ = next(iter(dataloader)) 
 
-    fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(10, 5))  # Adjust as needed
+    fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(10, 5)) 
     for i, ax in enumerate(axes.flat):
         ax.imshow(image[i].squeeze(0), cmap='gray')
         ax.axis('off')
-    
+
+        
+    with torch.no_grad():
+        generated_images = ddpm.sample(x.size(0), (1, 28, 28), accelerator.device)
+        ss_picture = []
+        for real, fake in zip(x, generated_images):
+            real_np = real.squeeze().cpu().numpy()
+            fake_np = fake.squeeze().cpu().numpy()
+            ss_picture.append(ss(real_np, fake_np, data_range=real_np.max() - real_np.min()))
+        
+        print(f'SS score = {np.mean(ss_picture)}')
     
     plt.savefig('Plots/example_MNIST.pdf')
     print('Example MNIST picture saved at Plots/example_MNIST.pdf')
@@ -186,7 +197,10 @@ def main():
     print('===================================')
     print(f'Plot saved at Plots/{name}_{my_type}_loss_function.pdf')
     print('===================================')
-       
+        
+
+            
+        
     if args.plots: # display plots only if the --plots is used
         plt.show()
 
