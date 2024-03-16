@@ -38,11 +38,12 @@ def main():
     parser.add_argument('--nT', help='Number of diffusion steps', type=int, default=1000, required=False)
     parser.add_argument('-d', '--drop', help='Dropout rate for pixels in the image, to be used only with the Personal model', required=False, type=float, default=0.2)
     parser.add_argument('-r', '--range', help='Range in which the pixel luminance is adjusted', required=False, type=float, nargs='+', default=(-0.1, 0.2))
-
+    parser.add_argument('--device', help='Device you want to run on', choices=['cuda:0', 'cpu'], default='cpu')
+    
     args = parser.parse_args()
     
     torch.manual_seed(4999) # set a random seed as my birthday to have reproducible code 
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # I have a CPU, but if someone wants to run on GPU this selects it automatically   
+    DEVICE = torch.device(args.device)
     
     # creating the folders where to store plots and models if they don't exist
     
@@ -81,10 +82,7 @@ def main():
     my_type = args.type
     
     # Checking that the correct parameters are passed based on the type of diffusion model you want to run on
-    
-    if my_type != 'Personal' and (args.drop or args.range):
-        raise ValueError('Error! Dropout and range are used only in the personal model')
-    
+        
     if my_type == 'Personal':
         dropout = args.drop
         my_range = args.range

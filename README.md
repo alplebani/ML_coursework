@@ -41,6 +41,7 @@ The options are the following:
 - ```--nT```: This value (int) determines how many discrete steps are used to add and remove noise from the images. By default this value is set to 1000
 - ```-d, --drop```: This value (float) determines the dropout rate for the pixels in the image. This is to be used only if ```type == 'Personal'```. By default this value is set to 0.2
 - ```-r, --range```: List of two increasing order floats between -1 and 1 which determine the range in which the pixel luminance is adjusted
+- ```--device```: Decide wether you want to run on ```cuda:0``` or ```cpu```. By default, this is set to ```cpu``` because my laptop doesn't have a cpu.
 
 The code will then display the hyperparameters and the parser options, and it will ask the user if he's happy with those choices. If yes, type ```y```, otherwise type any other key and the code will exit.
 
