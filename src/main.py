@@ -25,19 +25,19 @@ def main():
     
     # Command-line options
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--name', help='Name of the model', type=str, required=True)
     parser.add_argument('--plots', help='Flag: if selected, will show the plots instead of only saving them', required=False, action='store_true')
     parser.add_argument('-n', '--nepochs', help='Number of epochs you want to run on', required=False, default=100, type=int)
     # parser.add_argument('--easy', help='Run a simplified version of the network for testing', action='store_true') used only for testing at the beginning
     parser.add_argument('--delta', help='Delta for early stopping', default=0.0005, type=float, required=False)
     parser.add_argument('--patience', help='Number of epochs for early stopping', default=15, type=int, required=False)
     parser.add_argument('-t', '--type', help='Type of model you want to use for degradation', choices=['DDPM', 'Personal'], required=False, default='DDPM', type=str)
-    parser.add_argument('-l', '--layers', nargs='+', type=int, default=(8,8), required=False)
+    parser.add_argument('-l', '--layers', nargs='+', help='List of space-separated nodes in each hidden layer',type=int, default=(8,8), required=False)
     parser.add_argument('-e-','--eta', help='Learning rate', type=float, default=2e-4, required=False)
     parser.add_argument('-b', '--beta', help='Noise schedule beta', type=float, nargs='+', default=(1e-4, 0.02), required=False)
     parser.add_argument('--nT', help='Number of diffusion steps', type=int, default=1000, required=False)
-    parser.add_argument('--name', help='Name of the model', type=str, required=True)
-    parser.add_argument('-d', '--drop', help='Dropout rate for pixels in the image, to be used only with the Personal model', required=False, type=float)
-    parser.add_argument('-r', '--range', help='Range in which  the pixel brightness is adjusted', required=False, type=float, nargs='+')
+    parser.add_argument('-d', '--drop', help='Dropout rate for pixels in the image, to be used only with the Personal model', required=False, type=float, default=0.2)
+    parser.add_argument('-r', '--range', help='Range in which the pixel luminance is adjusted', required=False, type=float, nargs='+', default=(-0.1, 0.2))
 
     args = parser.parse_args()
     
@@ -82,8 +82,8 @@ def main():
     
     # Checking that the correct parameters are passed based on the type of diffusion model you want to run on
     
-    if my_type == 'Personal' and not (args.drop and args.range):
-        raise ValueError('Error! If you want to run the personal degradation model you have to specify the dropout and the range')
+    if my_type != 'Personal' and (args.drop or args.range):
+        raise ValueError('Error! Dropout and range are used only in the personal model')
     
     if my_type == 'Personal':
         dropout = args.drop
@@ -118,6 +118,16 @@ def main():
         
     
     print('==================================')
+    
+    
+    user_input = input("Are you happy with this setup? [y/n]: ")
+    if user_input.lower() == "y":
+        print("====================================")
+        print("Setup accepted! Now running the script")
+        print("====================================")
+    else:
+        raise ValueError('Setup not accepted! Exiting tthe code...')
+
     
     # Defining model architecture
     
