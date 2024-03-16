@@ -1,19 +1,7 @@
 import torch
 import torch.nn as nn
-from accelerate import Accelerator
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-from torchvision import transforms, models
-from torchvision.datasets import MNIST
-from torchvision.utils import save_image, make_grid
 from typing import Dict, Tuple
 import numpy as np
-import matplotlib.pyplot as plt
-from torchvision import transforms
-from torch.utils.data import Dataset
-from torch.nn import functional as F
-from scipy.linalg import sqrtm
-from numpy import dot, mean, trace
 
 def ddpm_schedules(beta1: float, beta2: float, T: int) -> Dict[str, torch.Tensor]:
     
@@ -185,29 +173,34 @@ class DDPM(nn.Module):
         return z_t
 
 class PersonalDegradation(torch.nn.Module):
-    def __init__(self, dropout=0.2, my_range=(-0.2, 0.2)):
+    """
+    Personal degradation model which selects some pixels with a probability equal to dropout and changes the luminance of those pixels in a range [ range[0], range[1] ]
+    """
+    def __init__(self, dropout=0.2, my_range=(-0.2, 0.2), device='cpu'):
         super().__init__()
         self.dropout = dropout
         self.my_range = my_range 
+        self.device = device
 
     def forward(self, x):
+        """
+        Apply personal degradation to input images
+        """
   
-        B, C, H, W = x.shape
+        B, C, _, _ = x.shape
         
-        if C == 3:
+        if C == 3: # change to grayscale if it's RGB
             x = x.mean(dim=1, keepdim=True)  
         elif C != 1:
             raise ValueError("Input image should be grayscale (C=1) or RGB (C=3).")
 
-        noise = torch.rand_like(x)
-        mask = torch.bernoulli(self.dropout * noise)
+        noise = torch.rand_like(x, device=self.device) # generate noise
+        mask = torch.bernoulli(self.dropout * noise) # generate dropout mask
 
        
-        adjust_factor = torch.rand(B, 1, 1, 1) * (self.my_range[1] - self.my_range[0]) + self.my_range[0]
+        adjust_factor = torch.rand((B, 1, 1, 1), device=self.device) * (self.my_range[1] - self.my_range[0]) + self.my_range[0] # factor to adjust luminance of selected pixels
 
-        out = x + adjust_factor * mask * (x - x.mean())
-
-        return out
+        return x + adjust_factor * mask * (x - x.mean())
     
     
 
